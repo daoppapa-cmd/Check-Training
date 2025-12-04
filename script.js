@@ -51,9 +51,12 @@ let videoStream = null;
 let isScanning = false;
 let isBlinking = false; 
 
-// ✅ កែសម្រួល៖
+// ✅ កែសម្រួល៖ បន្ធូរបន្ថយលក្ខខណ្ឌបន្ថែមទៀត
+// ១. អនុញ្ញាតអោយមុខខុសគ្នារហូតដល់ 0.5 (ស្តង់ដារ) ដើម្បីកុំអោយដាច់ពេលបិទភ្នែក
 const FACE_MATCH_THRESHOLD = 0.5; 
+// ២. កំណត់កម្រិតបិទភ្នែក (0.32 ងាយស្រួលចាប់ជាងមុន)
 const BLINK_THRESHOLD = 0.32; 
+// ៣. កំណត់កម្រិតបើកភ្នែក
 const OPEN_EYE_THRESHOLD = 0.35;
 
 const PLACEHOLDER_IMG = "https://placehold.co/80x80/e2e8f0/64748b?text=No+Img"; 
@@ -758,7 +761,9 @@ async function scanLoop() {
         }
 
     } else {
-        if (match.distance > 0.6) {
+        // Only reset blink if the match is VERY bad (different person).
+        // If match is 0.45 (slightly off due to closed eyes), we keep blink state.
+        if (match.distance > 0.65) {
              isBlinking = false;
         }
         
@@ -1122,7 +1127,7 @@ function fetchEmployeesFromRTDB() {
         
         // Use OR (||) to include employees matching ANY of these criteria
         //return isGroupMatch || isDeptMatch;
-        return isDeptMatch;
+      return isGroupMatch;
     });
 
     renderEmployeeList(allEmployees);
