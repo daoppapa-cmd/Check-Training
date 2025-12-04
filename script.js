@@ -52,7 +52,7 @@ let profileFaceError = false;
 // ✅ Setting Thresholds (រក្សាទុកការកំណត់ដែលងាយស្រួលស្កេន)
 const FACE_MATCH_THRESHOLD = 0.55; 
 const BLINK_THRESHOLD = 0.28; 
-const OPEN_EYE_THRESHOLD = 0.32;
+const OPEN_EYE_THRESHOLD = 0.35;
 
 const PLACEHOLDER_IMG = "https://placehold.co/80x80/e2e8f0/64748b?text=No+Img"; 
 
