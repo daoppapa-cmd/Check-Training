@@ -46,14 +46,10 @@ let currentUserFaceMatcher = null;
 let currentScanAction = null;
 let videoStream = null;
 let isScanning = false;
-let isBlinking = false; 
 let profileFaceError = false;
 
 // ✅ Setting Thresholds (រក្សាទុកការកំណត់ដែលងាយស្រួលស្កេន)
-const FACE_MATCH_THRESHOLD = 0.55; 
-const BLINK_THRESHOLD = 0.28; 
-const OPEN_EYE_THRESHOLD = 0.35;
-
+const FACE_MATCH_THRESHOLD = 0.50; // កាត់បន្ថយមកត្រឹម 0.50 ដើម្បីឱ្យងាយស្រួលស្កេនជាងមុនបន្តិច
 const PLACEHOLDER_IMG = "https://placehold.co/80x80/e2e8f0/64748b?text=No+Img"; 
 
 const shiftSettings = {
@@ -589,7 +585,7 @@ function startSessionListener(employeeId) {
 }
 
 // ============================================
-// 7. FACE & CAMERA LOGIC
+// 7. FACE & CAMERA LOGIC (MODIFIED - NO BLINK)
 // ============================================
 
 async function loadAIModels() {
@@ -660,7 +656,6 @@ async function startFaceScan(action) {
         await videoElement.play().catch(e => console.error("Play error:", e));
 
         isScanning = true;
-        isBlinking = false;
         
         // រង់ចាំវីដេអូដើរស្រួលបួលសិន
         if (videoElement.readyState >= 3) { // HAVE_FUTURE_DATA
@@ -694,17 +689,9 @@ function hideCameraModal() {
   }
 }
 
-function getEyeAspectRadio(eye) {
-    const A = Math.hypot(eye[1].x - eye[5].x, eye[1].y - eye[5].y);
-    const B = Math.hypot(eye[2].x - eye[4].x, eye[2].y - eye[4].y);
-    const C = Math.hypot(eye[0].x - eye[3].x, eye[0].y - eye[3].y);
-    return (A + B) / (2.0 * C);
-}
-
 async function scanLoop() {
     if (!isScanning) return;
     
-    // ✅ បន្ថែម៖ ពិនិត្យមើលថាតើរូប Profile មានបញ្ហាដែរឬទេ?
     if (profileFaceError) {
         if(cameraLoadingText) {
             cameraLoadingText.textContent = "រូប Profile មើលមិនច្បាស់ (រកមុខមិនឃើញ)";
@@ -725,7 +712,7 @@ async function scanLoop() {
             cameraLoadingText.textContent = "កំពុងស្វែងរកមុខ...";
             cameraLoadingText.className = "text-white font-bold text-lg mb-1";
         }
-        return setTimeout(scanLoop, 30); // 🚀 ពិនិត្យញឹកញាប់ជាងមុន (30ms)
+        return setTimeout(scanLoop, 30); 
     }
 
     if (!currentUserFaceMatcher) {
@@ -739,38 +726,15 @@ async function scanLoop() {
     const match = currentUserFaceMatcher.findBestMatch(detection.descriptor);
     const matchScore = Math.round((1 - match.distance) * 100);
     
+    // ✅ NO BLINK LOGIC - CHECK MATCH ONLY
     if (match.distance <= FACE_MATCH_THRESHOLD) {
-        const landmarks = detection.landmarks;
-        const leftEye = landmarks.getLeftEye();
-        const rightEye = landmarks.getRightEye();
-        
-        const leftEAR = getEyeAspectRadio(leftEye);
-        const rightEAR = getEyeAspectRadio(rightEye);
-        const avgEAR = (leftEAR + rightEAR) / 2;
-
+        isScanning = false;
         if(cameraLoadingText) {
-            cameraLoadingText.textContent = "សូមព្រិចភ្នែក (Blink)";
-            cameraLoadingText.className = "text-yellow-400 font-bold text-lg mb-1 animate-pulse";
+            cameraLoadingText.textContent = "មុខត្រឹមត្រូវ!";
+            cameraLoadingText.className = "text-green-400 font-bold text-lg mb-1";
         }
-
-        if (avgEAR < BLINK_THRESHOLD) {
-            isBlinking = true; 
-        } 
-        
-        if (isBlinking && avgEAR > OPEN_EYE_THRESHOLD) {
-            isScanning = false;
-            isBlinking = false;
-            processScanSuccess();
-        } else {
-             setTimeout(scanLoop, 30); // 🚀 ពិនិត្យញឹកញាប់ជាងមុន
-        }
-
+        processScanSuccess();
     } else {
-        // Only reset blink if the match is VERY bad (different person).
-        if (match.distance > 0.65) {
-             isBlinking = false;
-        }
-        
         if(cameraLoadingText) {
             cameraLoadingText.textContent = "មិនត្រូវគ្នា (" + matchScore + "%)";
             cameraLoadingText.className = "text-red-500 font-bold text-lg mb-1";
@@ -1009,22 +973,18 @@ async function selectUser(employee) {
     if(profileName) profileName.textContent = employee.name;
     if(profileId) profileId.textContent = `ID: ${employee.id}`;
     
-    // ✅ កែសម្រួល៖ ប្រើ onload event ដើម្បីធានាថារូបបាន Load ចប់ទើបអោយ AI ដំណើរការ
     if(profileImage) {
-        // កំណត់ CORS អោយ AI អាចអានរូបបាន
         profileImage.crossOrigin = "Anonymous";
         
         const imgSrc = employee.photoUrl || PLACEHOLDER_IMG;
         profileImage.src = imgSrc;
         
-        // Error Handling
         profileImage.onerror = () => {
             profileImage.onerror = null;
             profileImage.src = PLACEHOLDER_IMG;
         };
 
         // រង់ចាំរូប Load ចប់ ទើបហៅ prepareFaceMatcher
-        // ដោយប្រើ profileImage (Element) ផ្ទាល់ មិនមែន URL ទេ
         profileImage.onload = () => {
              prepareFaceMatcher(profileImage);
         };
@@ -1037,7 +997,6 @@ async function selectUser(employee) {
     setupAttendanceListener();
     startLeaveListeners();
     startSessionListener(employee.id); 
-    // prepareFaceMatcher ត្រូវបានហៅក្នុង onload ខាងលើហើយ
 
     if(employeeListContainer) employeeListContainer.classList.add("hidden");
     if(searchInput) searchInput.value = "";
@@ -1084,7 +1043,6 @@ function checkAutoLogin() {
 }
 
 // ✅ មុខងារថ្មី៖ ទាញទិន្នន័យពី Realtime Database (Updated with Filters)
-// ✅ កែសម្រួល៖ ជួសជុល Error និងប្រើលក្ខខណ្ឌ (OR + AND) ត្រឹមត្រូវ
 function fetchEmployeesFromRTDB() {
   changeView("loadingView");
   const studentsRef = ref(dbEmployeeList, 'students');
@@ -1103,10 +1061,8 @@ function fetchEmployeesFromRTDB() {
         return {
             id: String(key).trim(),
             name: student["ឈ្មោះ"] || "N.A",
-            // Use ផ្នែកការងារ for department filtering
             department: student["ផ្នែកការងារ"] || "N.A", 
             photoUrl: student["រូបថត"] || null,
-            // Use ក្រុម for group filtering
             group: student["ក្រុម"] || "N.A", 
             gender: student["ភេទ"] || "N/A",
             grade: student["ថ្នាក់"] || "N/A",
@@ -1120,17 +1076,10 @@ function fetchEmployeesFromRTDB() {
             shiftSun: schedule["អាទិត្យ"] || null,
         };
     }).filter(emp => {
-        // Filter condition:
-        // Group: "IT Support" OR "DRB"
-        // AND
-        // Department: "training_ជំនាន់២"
+        // Filter condition: Training_ជំនាន់២ only
         const group = (emp.group || "").trim();
         const dept = (emp.department || "").trim();
-        
-        //const isGroupMatch = group === "IT Support" || group === "DRB";
         const isDeptMatch = dept === "Training_ជំនាន់២";
-        
-        // Use AND (&&) to include employees matching BOTH criteria
         return isDeptMatch;
     });
 
@@ -1138,8 +1087,6 @@ function fetchEmployeesFromRTDB() {
     checkAutoLogin(); 
     
     if (loadingView.style.display !== 'none') {
-         // checkAutoLogin will handle view change if logged in
-         // If not, we stay at employeeListView
          if (!localStorage.getItem("savedEmployeeId")) {
              changeView("employeeListView");
          }
@@ -1185,7 +1132,6 @@ async function initializeAppFirebase() {
     setLogLevel("silent");
 
     setupAuthListener();
-    // ✅ ហៅមុខងារថ្មី (Call the new function)
     fetchEmployeesFromRTDB();
 
   } catch (error) {
