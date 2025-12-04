@@ -1,9 +1,6 @@
 // ============================================
 // 1. IMPORTS & DEPENDENCIES
 // ============================================
-// ❌ ឈប់ប្រើ name.js ទៀតហើយ
-// import { studentData } from "./name.js"; 
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { 
   getAuth, 
@@ -51,12 +48,9 @@ let videoStream = null;
 let isScanning = false;
 let isBlinking = false; 
 
-// ✅ កែសម្រួល៖ បន្ធូរបន្ថយលក្ខខណ្ឌបន្ថែមទៀត
-// ១. អនុញ្ញាតអោយមុខខុសគ្នារហូតដល់ 0.5 (ស្តង់ដារ) ដើម្បីកុំអោយដាច់ពេលបិទភ្នែក
+// Setting Thresholds
 const FACE_MATCH_THRESHOLD = 0.5; 
-// ២. កំណត់កម្រិតបិទភ្នែក (0.32 ងាយស្រួលចាប់ជាងមុន)
 const BLINK_THRESHOLD = 0.32; 
-// ៣. កំណត់កម្រិតបើកភ្នែក
 const OPEN_EYE_THRESHOLD = 0.35;
 
 const PLACEHOLDER_IMG = "https://placehold.co/80x80/e2e8f0/64748b?text=No+Img"; 
@@ -1117,17 +1111,17 @@ function fetchEmployeesFromRTDB() {
     }).filter(emp => {
         // Filter condition:
         // Group: "IT Support" OR "DRB"
-        // OR
+        // AND
         // Department: "training_ជំនាន់២"
         const group = (emp.group || "").trim();
         const dept = (emp.department || "").trim();
         
         //const isGroupMatch = group === "IT Support" || group === "DRB";
-        const isDeptMatch = dept === "Training_ជំនាន់២";
+        const isDeptMatch = dept === "training_ជំនាន់២";
         
-        // Use OR (||) to include employees matching ANY of these criteria
-        //return isGroupMatch || isDeptMatch;
-      return isGroupMatch;
+        // Use AND (&&) to include employees matching BOTH criteria
+        //return isGroupMatch && isDeptMatch;
+        return isDeptMatch;
     });
 
     renderEmployeeList(allEmployees);
