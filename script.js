@@ -47,11 +47,16 @@ let currentScanAction = null;
 let videoStream = null;
 let isScanning = false;
 let isBlinking = false; 
+// 🚩 Variable ថ្មីសម្រាប់ចាប់បញ្ហារូប Profile
+let profileFaceError = false;
 
-// Setting Thresholds
-const FACE_MATCH_THRESHOLD = 0.5; 
-const BLINK_THRESHOLD = 0.32; 
-const OPEN_EYE_THRESHOLD = 0.35;
+// ✅ កែសម្រួល៖ បន្ធូរបន្ថយលក្ខខណ្ឌ
+// ១. 0.55 = អនុញ្ញាតអោយមុខខុសគ្នាបានច្រើនជាងមុនបន្តិច (ដោះស្រាយបញ្ហាពិបាកស្កេន)
+const FACE_MATCH_THRESHOLD = 0.55; 
+// ២. កំណត់កម្រិតបិទភ្នែក (0.28)
+const BLINK_THRESHOLD = 0.28; 
+// ៣. កំណត់កម្រិតបើកភ្នែក (0.32 = ងាយស្រួលបើកជាងមុន)
+const OPEN_EYE_THRESHOLD = 0.32;
 
 const PLACEHOLDER_IMG = "https://placehold.co/80x80/e2e8f0/64748b?text=No+Img"; 
 
@@ -607,6 +612,7 @@ async function loadAIModels() {
 // ✅ កែសម្រួល៖ ប្រើរូបភាពពី DOM ផ្ទាល់ ជំនួសឱ្យការ Download ថ្មី
 async function prepareFaceMatcher(imgElement) {
   currentUserFaceMatcher = null;
+  profileFaceError = false; // Reset error flag
   if (!imgElement) return;
   
   try {
@@ -618,9 +624,11 @@ async function prepareFaceMatcher(imgElement) {
         console.log("Face Matcher Ready");
     } else {
         console.warn("No face detected in profile image.");
+        profileFaceError = true; // Mark that this user cannot be scanned
     }
   } catch (e) { 
       console.error("Error preparing face matcher:", e);
+      profileFaceError = true;
   }
 }
 
@@ -702,6 +710,15 @@ function getEyeAspectRadio(eye) {
 async function scanLoop() {
     if (!isScanning) return;
     
+    // ✅ បន្ថែម៖ ពិនិត្យមើលថាតើរូប Profile មានបញ្ហាដែរឬទេ?
+    if (profileFaceError) {
+        if(cameraLoadingText) {
+            cameraLoadingText.textContent = "រូប Profile មើលមិនច្បាស់ (រកមុខមិនឃើញ)";
+            cameraLoadingText.className = "text-red-500 font-bold text-lg mb-1";
+        }
+        return; // បញ្ឈប់ការស្កេន
+    }
+    
     if (videoElement.paused || videoElement.ended || !faceapi.nets.tinyFaceDetector.params) {
         return setTimeout(scanLoop, 100);
     }
@@ -718,7 +735,10 @@ async function scanLoop() {
     }
 
     if (!currentUserFaceMatcher) {
-         if(cameraLoadingText) cameraLoadingText.textContent = "គ្មានរូប Profile!";
+         if(cameraLoadingText) {
+             cameraLoadingText.textContent = "កំពុងរៀបចំទិន្នន័យមុខ...";
+             cameraLoadingText.className = "text-yellow-400 font-bold text-sm";
+         }
          return setTimeout(scanLoop, 500);
     }
 
@@ -756,7 +776,6 @@ async function scanLoop() {
 
     } else {
         // Only reset blink if the match is VERY bad (different person).
-        // If match is 0.45 (slightly off due to closed eyes), we keep blink state.
         if (match.distance > 0.65) {
              isBlinking = false;
         }
@@ -1111,17 +1130,16 @@ function fetchEmployeesFromRTDB() {
     }).filter(emp => {
         // Filter condition:
         // Group: "IT Support" OR "DRB"
-        // AND
+        // OR
         // Department: "training_ជំនាន់២"
         const group = (emp.group || "").trim();
         const dept = (emp.department || "").trim();
         
-        //const isGroupMatch = group === "IT Support" || group === "DRB";
-        const isDeptMatch = dept === "Training_ជំនាន់២";
+        const isGroupMatch = group === "IT Support" || group === "DRB";
+        const isDeptMatch = dept === "training_ជំនាន់២";
         
-        // Use AND (&&) to include employees matching BOTH criteria
-        //return isGroupMatch && isDeptMatch;
-        return isDeptMatch;
+        // Use OR (||) to include employees matching ANY of these criteria
+        return isGroupMatch || isDeptMatch;
     });
 
     renderEmployeeList(allEmployees);
