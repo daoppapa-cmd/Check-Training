@@ -47,15 +47,11 @@ let currentScanAction = null;
 let videoStream = null;
 let isScanning = false;
 let isBlinking = false; 
-// 🚩 Variable ថ្មីសម្រាប់ចាប់បញ្ហារូប Profile
 let profileFaceError = false;
 
-// ✅ កែសម្រួល៖ បន្ធូរបន្ថយលក្ខខណ្ឌ
-// ១. 0.55 = អនុញ្ញាតអោយមុខខុសគ្នាបានច្រើនជាងមុនបន្តិច (ដោះស្រាយបញ្ហាពិបាកស្កេន)
+// ✅ Setting Thresholds (រក្សាទុកការកំណត់ដែលងាយស្រួលស្កេន)
 const FACE_MATCH_THRESHOLD = 0.55; 
-// ២. កំណត់កម្រិតបិទភ្នែក (0.28)
 const BLINK_THRESHOLD = 0.28; 
-// ៣. កំណត់កម្រិតបើកភ្នែក (0.32 = ងាយស្រួលបើកជាងមុន)
 const OPEN_EYE_THRESHOLD = 0.32;
 
 const PLACEHOLDER_IMG = "https://placehold.co/80x80/e2e8f0/64748b?text=No+Img"; 
@@ -609,14 +605,12 @@ async function loadAIModels() {
   }
 }
 
-// ✅ កែសម្រួល៖ ប្រើរូបភាពពី DOM ផ្ទាល់ ជំនួសឱ្យការ Download ថ្មី
 async function prepareFaceMatcher(imgElement) {
   currentUserFaceMatcher = null;
-  profileFaceError = false; // Reset error flag
+  profileFaceError = false; 
   if (!imgElement) return;
   
   try {
-    // ប្រើរូបភាពដែល Load រួចស្រាប់នៅក្នុង HTML
     const detection = await faceapi.detectSingleFace(imgElement, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
     
     if (detection) {
@@ -624,7 +618,7 @@ async function prepareFaceMatcher(imgElement) {
         console.log("Face Matcher Ready");
     } else {
         console.warn("No face detected in profile image.");
-        profileFaceError = true; // Mark that this user cannot be scanned
+        profileFaceError = true; 
     }
   } catch (e) { 
       console.error("Error preparing face matcher:", e);
@@ -758,9 +752,6 @@ async function scanLoop() {
             cameraLoadingText.textContent = "សូមព្រិចភ្នែក (Blink)";
             cameraLoadingText.className = "text-yellow-400 font-bold text-lg mb-1 animate-pulse";
         }
-
-        // Debugging log (optional, remove in prod)
-        // console.log("EAR:", avgEAR, "Blinking:", isBlinking);
 
         if (avgEAR < BLINK_THRESHOLD) {
             isBlinking = true; 
@@ -1093,6 +1084,7 @@ function checkAutoLogin() {
 }
 
 // ✅ មុខងារថ្មី៖ ទាញទិន្នន័យពី Realtime Database (Updated with Filters)
+// ✅ កែសម្រួល៖ ជួសជុល Error និងប្រើលក្ខខណ្ឌ (OR + AND) ត្រឹមត្រូវ
 function fetchEmployeesFromRTDB() {
   changeView("loadingView");
   const studentsRef = ref(dbEmployeeList, 'students');
@@ -1130,16 +1122,16 @@ function fetchEmployeesFromRTDB() {
     }).filter(emp => {
         // Filter condition:
         // Group: "IT Support" OR "DRB"
-        // OR
+        // AND
         // Department: "training_ជំនាន់២"
         const group = (emp.group || "").trim();
         const dept = (emp.department || "").trim();
         
-        const isGroupMatch = group === "IT Support" || group === "DRB";
+        //const isGroupMatch = group === "IT Support" || group === "DRB";
         const isDeptMatch = dept === "training_ជំនាន់២";
         
-        // Use OR (||) to include employees matching ANY of these criteria
-        return isGroupMatch || isDeptMatch;
+        // Use AND (&&) to include employees matching BOTH criteria
+        return isDeptMatch;
     });
 
     renderEmployeeList(allEmployees);
