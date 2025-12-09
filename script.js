@@ -48,8 +48,9 @@ let videoStream = null;
 let isScanning = false;
 let profileFaceError = false;
 
-// ✅ Setting Thresholds (រក្សាទុកការកំណត់ដែលងាយស្រួលស្កេន)
-const FACE_MATCH_THRESHOLD = 0.50; // កាត់បន្ថយមកត្រឹម 0.50 ដើម្បីឱ្យងាយស្រួលស្កេនជាងមុនបន្តិច
+// ✅ កែសម្រួល៖ កំណត់ Threshold មក 0.5 វិញ និងដកការកំណត់ Blink ចេញ
+const FACE_MATCH_THRESHOLD = 0.5; 
+
 const PLACEHOLDER_IMG = "https://placehold.co/80x80/e2e8f0/64748b?text=No+Img"; 
 
 const shiftSettings = {
@@ -585,7 +586,7 @@ function startSessionListener(employeeId) {
 }
 
 // ============================================
-// 7. FACE & CAMERA LOGIC (MODIFIED - NO BLINK)
+// 7. FACE & CAMERA LOGIC
 // ============================================
 
 async function loadAIModels() {
@@ -596,17 +597,24 @@ async function loadAIModels() {
       faceapi.nets.faceRecognitionNet.loadFromUri("./models"),
     ]);
     modelsLoaded = true;
+    
+    // ✅ ហៅមុខងារទាញទិន្នន័យពី RTDB (ជំនួសឱ្យ loadEmployeesFromLocal)
+    // ប៉ុន្តែ fetchEmployeesFromRTDB ត្រូវបានហៅរួចហើយក្នុង initializeAppFirebase
+    // ដូច្នេះមិនចាំបាច់ហៅនៅទីនេះទេ។
+    
   } catch (e) {
     console.error("Error loading models:", e);
   }
 }
 
+// ✅ កែសម្រួល៖ ប្រើរូបភាពពី DOM ផ្ទាល់ ជំនួសឱ្យការ Download ថ្មី
 async function prepareFaceMatcher(imgElement) {
   currentUserFaceMatcher = null;
   profileFaceError = false; 
   if (!imgElement) return;
   
   try {
+    // ប្រើរូបភាពដែល Load រួចស្រាប់នៅក្នុង HTML
     const detection = await faceapi.detectSingleFace(imgElement, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
     
     if (detection) {
@@ -692,6 +700,7 @@ function hideCameraModal() {
 async function scanLoop() {
     if (!isScanning) return;
     
+    // ✅ បន្ថែម៖ ពិនិត្យមើលថាតើរូប Profile មានបញ្ហាដែរឬទេ?
     if (profileFaceError) {
         if(cameraLoadingText) {
             cameraLoadingText.textContent = "រូប Profile មើលមិនច្បាស់ (រកមុខមិនឃើញ)";
@@ -712,7 +721,7 @@ async function scanLoop() {
             cameraLoadingText.textContent = "កំពុងស្វែងរកមុខ...";
             cameraLoadingText.className = "text-white font-bold text-lg mb-1";
         }
-        return setTimeout(scanLoop, 30); 
+        return setTimeout(scanLoop, 30); // 🚀 ពិនិត្យញឹកញាប់ជាងមុន (30ms)
     }
 
     if (!currentUserFaceMatcher) {
@@ -726,14 +735,15 @@ async function scanLoop() {
     const match = currentUserFaceMatcher.findBestMatch(detection.descriptor);
     const matchScore = Math.round((1 - match.distance) * 100);
     
-    // ✅ NO BLINK LOGIC - CHECK MATCH ONLY
+    // ✅ ជោគជ័យភ្លាមៗ មិនបាច់ព្រិចភ្នែក (ដក Blink Check ចេញ)
     if (match.distance <= FACE_MATCH_THRESHOLD) {
-        isScanning = false;
         if(cameraLoadingText) {
-            cameraLoadingText.textContent = "មុខត្រឹមត្រូវ!";
-            cameraLoadingText.className = "text-green-400 font-bold text-lg mb-1";
+            cameraLoadingText.textContent = "ជោគជ័យ!";
+            cameraLoadingText.className = "text-green-400 font-bold text-lg mb-1 animate-pulse";
         }
+        isScanning = false;
         processScanSuccess();
+
     } else {
         if(cameraLoadingText) {
             cameraLoadingText.textContent = "មិនត្រូវគ្នា (" + matchScore + "%)";
@@ -973,18 +983,22 @@ async function selectUser(employee) {
     if(profileName) profileName.textContent = employee.name;
     if(profileId) profileId.textContent = `ID: ${employee.id}`;
     
+    // ✅ កែសម្រួល៖ ប្រើ onload event ដើម្បីធានាថារូបបាន Load ចប់ទើបអោយ AI ដំណើរការ
     if(profileImage) {
+        // កំណត់ CORS អោយ AI អាចអានរូបបាន
         profileImage.crossOrigin = "Anonymous";
         
         const imgSrc = employee.photoUrl || PLACEHOLDER_IMG;
         profileImage.src = imgSrc;
         
+        // Error Handling
         profileImage.onerror = () => {
             profileImage.onerror = null;
             profileImage.src = PLACEHOLDER_IMG;
         };
 
         // រង់ចាំរូប Load ចប់ ទើបហៅ prepareFaceMatcher
+        // ដោយប្រើ profileImage (Element) ផ្ទាល់ មិនមែន URL ទេ
         profileImage.onload = () => {
              prepareFaceMatcher(profileImage);
         };
@@ -997,6 +1011,7 @@ async function selectUser(employee) {
     setupAttendanceListener();
     startLeaveListeners();
     startSessionListener(employee.id); 
+    // prepareFaceMatcher ត្រូវបានហៅក្នុង onload ខាងលើហើយ
 
     if(employeeListContainer) employeeListContainer.classList.add("hidden");
     if(searchInput) searchInput.value = "";
@@ -1061,8 +1076,10 @@ function fetchEmployeesFromRTDB() {
         return {
             id: String(key).trim(),
             name: student["ឈ្មោះ"] || "N.A",
+            // Use ផ្នែកការងារ for department filtering
             department: student["ផ្នែកការងារ"] || "N.A", 
             photoUrl: student["រូបថត"] || null,
+            // Use ក្រុម for group filtering
             group: student["ក្រុម"] || "N.A", 
             gender: student["ភេទ"] || "N/A",
             grade: student["ថ្នាក់"] || "N/A",
@@ -1076,17 +1093,19 @@ function fetchEmployeesFromRTDB() {
             shiftSun: schedule["អាទិត្យ"] || null,
         };
     }).filter(emp => {
-        // Filter condition: Training_ជំនាន់២ only
-        const group = (emp.group || "").trim();
+        // Filter condition:
+        // Department: "រៀនវគ្គបណ្ដុះបណ្ដាលIT_ជំនាន់២" OR "Training_ជំនួយការលោកគ្រូដារ៉ូ"
         const dept = (emp.department || "").trim();
-        const isDeptMatch = dept === "Training_ជំនាន់២";
-        return isDeptMatch;
+        
+        return dept === "រៀនវគ្គបណ្ដុះបណ្ដាលIT_ជំនាន់២" || dept === "Training_ជំនួយការលោកគ្រូដារ៉ូ";
     });
 
     renderEmployeeList(allEmployees);
     checkAutoLogin(); 
     
     if (loadingView.style.display !== 'none') {
+         // checkAutoLogin will handle view change if logged in
+         // If not, we stay at employeeListView
          if (!localStorage.getItem("savedEmployeeId")) {
              changeView("employeeListView");
          }
@@ -1132,6 +1151,7 @@ async function initializeAppFirebase() {
     setLogLevel("silent");
 
     setupAuthListener();
+    // ✅ ហៅមុខងារថ្មី (Call the new function)
     fetchEmployeesFromRTDB();
 
   } catch (error) {
